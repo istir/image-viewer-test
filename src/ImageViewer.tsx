@@ -11,33 +11,71 @@ interface IState {
   moveStart: { x: number; y: number };
   moveBy: { x: number; y: number };
   currentTransform: { x: number; y: number };
+  moving: boolean;
+  zoomToFit: boolean;
 }
 export default class ImageViewer extends React.Component<IProps, IState> {
   imageRef: React.RefObject<HTMLImageElement>;
   constructor(props: IProps) {
     super(props);
-    //  console.log(this.props.src)
+    //
     this.imageRef = React.createRef();
     this.state = {
       currentScale: 1,
       moveStart: { x: 0, y: 0 },
       moveBy: { x: 0, y: 0 },
       currentTransform: { x: 0, y: 0 },
+      moving: false,
+      zoomToFit: false,
     };
+  }
+
+  componentDidUpdate() {
+    setTimeout(() => {
+      this.imageRef.current?.focus();
+    }, 100);
   }
 
   hide() {
     this.props.setVisibility(false);
-    this.setState({ currentScale: 1 });
+    this.setState({
+      currentScale: 1,
+      currentTransform: { x: 0, y: 0 },
+      moveBy: { x: 0, y: 0 },
+      moveStart: { x: 0, y: 0 },
+    });
+  }
+
+  actualSize() {
+    this.setState({
+      currentScale: 1,
+    });
+  }
+
+  zoomToFit() {
+    if (this.state.zoomToFit) {
+      this.setState({
+        currentScale: 1,
+      });
+    }
+
+    this.setState({ zoomToFit: !this.state.zoomToFit });
   }
 
   zoom(e: any) {
     function changeScaleState(currentZoom: number, zoom: number) {
-      return currentZoom + zoom;
+      let zoom1 = zoom;
+      if (currentZoom < 1) {
+        zoom1 = zoom / 2;
+      }
+      let newZoom = currentZoom + zoom1;
+      if (newZoom > 0.1 && newZoom <= 3) {
+        return newZoom;
+      }
+      return currentZoom;
     }
 
     if (e.deltaY > 0) {
-      console.log("small");
       this.setState(function (prevState) {
         return { currentScale: changeScaleState(prevState.currentScale, -0.1) };
       });
@@ -50,17 +88,38 @@ export default class ImageViewer extends React.Component<IProps, IState> {
   render() {
     return (
       <div
-        onKeyPress={(e) => {
-          console.log(e);
+        onClick={() => {
+          if (!this.state.moving) {
+            // e.preventDefault();
+            this.hide();
+          } else {
+            this.setState({ moving: false });
+          }
         }}
         onMouseDown={(e) => {
-          this.imageRef.current?.classList.add("dragging");
-          this.setState({ moveStart: { x: e.clientX, y: e.clientY } });
+          if (e.button === 0 || 1) {
+            this.imageRef.current?.classList.add("dragging");
+            this.setState({ moveStart: { x: e.clientX, y: e.clientY } });
+          }
 
-          console.log("DOWN");
+          e.preventDefault();
         }}
         onMouseUp={(e) => {
-          console.log("UP");
+          if (e.button === 0 || 1) {
+            this.imageRef.current?.classList.remove("dragging");
+            this.setState({
+              currentTransform: {
+                x: this.state.moveBy.x,
+                y: this.state.moveBy.y,
+              },
+            });
+          }
+        }}
+        onWheel={(e) => {
+          this.setState({ zoomToFit: false });
+          this.zoom(e);
+        }}
+        onMouseLeave={(e) => {
           this.imageRef.current?.classList.remove("dragging");
           this.setState({
             currentTransform: {
@@ -69,10 +128,12 @@ export default class ImageViewer extends React.Component<IProps, IState> {
             },
           });
         }}
-        onWheel={this.zoom.bind(this)}
         onMouseMove={(e) => {
           if (this.imageRef.current?.classList.contains("dragging")) {
             let scale = 1;
+            if (!this.state.moving) {
+              this.setState({ moving: true });
+            }
             this.setState({
               moveBy: {
                 x:
@@ -102,9 +163,26 @@ export default class ImageViewer extends React.Component<IProps, IState> {
           }}
         >
           <img
+            onKeyDown={(e) => {
+              if (e.code === "Escape") {
+                this.hide();
+              }
+              if (e.code === "Space") {
+                // this.zoomToFit();
+                this.actualSize();
+              }
+              if (e.key === "f") {
+              }
+              //   ;
+              e.preventDefault();
+              //TODO:somehow add space/esc/f keys
+            }}
+            tabIndex={0}
             draggable={false}
             alt="Fullscreen"
             style={{
+              width: `${this.state.zoomToFit ? "100vw" : "min-content"}`,
+              height: `${this.state.zoomToFit ? "100vh" : "min-content"}`,
               transform: `scale(${this.state.currentScale})`,
             }}
             ref={this.imageRef}
